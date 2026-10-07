@@ -34,17 +34,31 @@ import { SuperAdminModule }    from './super-admin/super-admin.module.js';
     // ── PostgreSQL: identity + billing layer only ────────────────────────
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => ({
-        type:        'postgres',
-        host:        cfg.get('DB_HOST', 'localhost'),
-        port:        cfg.get<number>('DB_PORT', 5432),
-        username:    cfg.get('DB_USER', 'pulse_user'),
-        password:    cfg.get('DB_PASS', 'pulse_secret'),
-        database:    cfg.get('DB_NAME', 'pulse_db'),
-        entities:    [User, ResetToken, Subscription, Workspace, Category],
-        synchronize: false,
-        logging:     cfg.get('NODE_ENV') === 'development',
-      }),
+      useFactory: (cfg: ConfigService) => {
+        // Support both DATABASE_URL (Neon/production) and individual DB_* vars (local)
+        const databaseUrl = cfg.get<string>('DATABASE_URL');
+        if (databaseUrl) {
+          return {
+            type:        'postgres',
+            url:         databaseUrl,
+            entities:    [User, ResetToken, Subscription, Workspace, Category],
+            synchronize: false,
+            ssl:         { rejectUnauthorized: false },
+            logging:     false,
+          };
+        }
+        return {
+          type:        'postgres',
+          host:        cfg.get('DB_HOST', 'localhost'),
+          port:        cfg.get<number>('DB_PORT', 5432),
+          username:    cfg.get('DB_USER', 'pulse_user'),
+          password:    cfg.get('DB_PASS', 'pulse_secret'),
+          database:    cfg.get('DB_NAME', 'pulse_db'),
+          entities:    [User, ResetToken, Subscription, Workspace, Category],
+          synchronize: false,
+          logging:     cfg.get('NODE_ENV') === 'development',
+        };
+      },
     }),
 
     // ── Modules ─────────────────────────────────────────────────────────
