@@ -1,18 +1,16 @@
 /**
  * Vercel Serverless Entry Point for NestJS
- *
- * Vercel invokes this file as a serverless function.
- * We bootstrap the NestJS app once and reuse it across warm invocations.
  */
 import 'reflect-metadata';
 import { NestFactory }     from '@nestjs/core';
 import { ValidationPipe }  from '@nestjs/common';
 import { ExpressAdapter }  from '@nestjs/platform-express';
-import { AppModule }       from '../src/app.module';
 import express             from 'express';
 import type { Request, Response } from 'express';
 
-// Cache the app instance across warm Lambda/serverless invocations
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { AppModule } = require('../src/app.module');
+
 let cachedApp: express.Express | null = null;
 
 async function bootstrap(): Promise<express.Express> {
@@ -29,12 +27,12 @@ async function bootstrap(): Promise<express.Express> {
     new ValidationPipe({ whitelist: true, transform: true }),
   );
 
-  const frontendUrl      = process.env.FRONTEND_URL      ?? 'http://localhost:3000';
-  const dashboardUrl     = process.env.DASHBOARD_ADMIN_URL ?? 'http://localhost:2000';
-  const vercelPreviewRe  = /https:\/\/.*\.vercel\.app$/;
+  const frontendUrl     = process.env.FRONTEND_URL      ?? 'http://localhost:3000';
+  const dashboardUrl    = process.env.DASHBOARD_ADMIN_URL ?? 'http://localhost:2000';
+  const vercelPreviewRe = /https:\/\/.*\.vercel\.app$/;
 
   app.enableCors({
-    origin: (origin, cb) => {
+    origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
       if (
         !origin ||
         origin === frontendUrl ||
@@ -51,14 +49,12 @@ async function bootstrap(): Promise<express.Express> {
   });
 
   app.setGlobalPrefix('api/v1');
-
   await app.init();
 
   cachedApp = server;
   return server;
 }
 
-// Vercel calls this as the default export handler
 export default async function handler(req: Request, res: Response) {
   const app = await bootstrap();
   app(req, res);
