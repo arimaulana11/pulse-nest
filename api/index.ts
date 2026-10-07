@@ -1,15 +1,13 @@
 /**
- * Vercel Serverless Entry Point for NestJS
+ * Vercel Serverless Entry Point for NestJS (ESM)
  */
 import 'reflect-metadata';
-import { NestFactory }     from '@nestjs/core';
-import { ValidationPipe }  from '@nestjs/common';
-import { ExpressAdapter }  from '@nestjs/platform-express';
-import express             from 'express';
+import { NestFactory }    from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { ExpressAdapter } from '@nestjs/platform-express';
+import { AppModule }      from '../src/app.module.js';
+import express            from 'express';
 import type { Request, Response } from 'express';
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { AppModule } = require('../src/app.module');
 
 let cachedApp: express.Express | null = null;
 
@@ -23,26 +21,19 @@ async function bootstrap(): Promise<express.Express> {
     logger: ['error', 'warn'],
   });
 
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, transform: true }),
-  );
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
-  const frontendUrl     = process.env.FRONTEND_URL      ?? 'http://localhost:3000';
+  const frontendUrl     = process.env.FRONTEND_URL        ?? 'http://localhost:3000';
   const dashboardUrl    = process.env.DASHBOARD_ADMIN_URL ?? 'http://localhost:2000';
-  const vercelPreviewRe = /https:\/\/.*\.vercel\.app$/;
+  const vercelRe        = /https:\/\/.*\.vercel\.app$/;
 
   app.enableCors({
     origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
-      if (
-        !origin ||
-        origin === frontendUrl ||
-        origin === dashboardUrl ||
-        vercelPreviewRe.test(origin) ||
-        origin.startsWith('http://localhost')
-      ) {
+      if (!origin || origin === frontendUrl || origin === dashboardUrl ||
+          vercelRe.test(origin) || origin.startsWith('http://localhost')) {
         cb(null, true);
       } else {
-        cb(new Error(`CORS: origin ${origin} not allowed`));
+        cb(new Error(`CORS: ${origin} not allowed`));
       }
     },
     credentials: true,
