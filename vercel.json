@@ -5,7 +5,7 @@
       "src": "api/index.ts",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["dist/**", "src/**"],
+        "includeFiles": ["dist/**", "src/**", "node_modules/pg/**", "node_modules/pg-pool/**", "node_modules/pg-cloudflare/**"],
         "tsconfig": "tsconfig.vercel.json",
         "maxDuration": 30
       }

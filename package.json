@@ -8,7 +8,7 @@
   "type": "module",
   "scripts": {
     "build": "nest build",
-    "vercel-build": "nest build",
+    "vercel-build": "npm install pg && nest build",
     "deploy": "nest deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
