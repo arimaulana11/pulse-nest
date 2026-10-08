@@ -7,14 +7,16 @@ import { randomBytes }            from 'crypto';
 import { Workspace }              from './workspace.entity.js';
 import { CreateWorkspaceDto, InviteMemberDto } from './dto/workspace.dto.js';
 import { SheetsService }          from '../sheets/sheets.service.js';
+import { NotificationsService }   from '../notifications/notifications.service.js';
 
 @Injectable()
 export class WorkspacesService {
   constructor(
     @InjectRepository(Workspace)
-    private readonly repo: Repository<Workspace>,
-    private readonly ds:   DataSource,
+    private readonly repo:   Repository<Workspace>,
+    private readonly ds:     DataSource,
     private readonly sheets: SheetsService,
+    private readonly notifs: NotificationsService,
   ) {}
 
   // ── Helpers ────────────────────────────────────────────────────────────
@@ -126,12 +128,31 @@ export class WorkspacesService {
     const token     = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 14 * 86_400_000); // 14 days
 
-    await this.ds.query(
+    const inviteRows = await this.ds.query<{ id: string }[]>(
       `INSERT INTO workspace_invitations
          (workspace_id, invited_by, email, role_id, token, status, expires_at)
-       VALUES ($1, $2, $3, $4, $5, 'pending', $6)`,
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6)
+       RETURNING id`,
       [workspaceId, inviterId, dto.email, role[0].id, token, expiresAt],
     );
+    const inviteId = inviteRows[0]?.id;
+
+    // Fetch names for notification
+    const [wsRows, inviterRows, roleRows] = await Promise.all([
+      this.ds.query<{ name: string }[]>(`SELECT name FROM workspaces WHERE id = $1`, [workspaceId]),
+      this.ds.query<{ name: string }[]>(`SELECT name FROM users WHERE id = $1`, [inviterId]),
+      this.ds.query<{ label: string }[]>(`SELECT label FROM workspace_roles WHERE code = $1`, [dto.roleCode]),
+    ]);
+
+    // Fire-and-forget: create persistent notification for invitee
+    if (inviteId) {
+      void this.notifs.createInviteNotification(
+        dto.email, inviteId, workspaceId,
+        inviterRows[0]?.name ?? 'Someone',
+        wsRows[0]?.name     ?? 'Workspace',
+        roleRows[0]?.label  ?? dto.roleCode,
+      );
+    }
 
     return { message: `Undangan dikirim ke ${dto.email}`, token };
   }
