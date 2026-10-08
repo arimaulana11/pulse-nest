@@ -37,9 +37,8 @@ import { SuperAdminModule }    from './super-admin/super-admin.module.js';
         const databaseUrl = cfg.get<string>('DATABASE_URL');
         const isProduction = cfg.get('NODE_ENV') === 'production';
 
-        if (databaseUrl && isProduction) {
-          // Production: use @neondatabase/serverless as pg replacement
-          // This is pure JS — no native binary needed
+        if (databaseUrl) {
+          // Pakai @neondatabase/serverless untuk Neon DB
           const { Pool, neonConfig } = await import('@neondatabase/serverless');
           const { default: ws } = await import('ws');
           neonConfig.webSocketConstructor = ws;
@@ -49,28 +48,18 @@ import { SuperAdminModule }    from './super-admin/super-admin.module.js';
             url:            databaseUrl,
             entities:       [User, ResetToken, Subscription, Workspace, Category],
             synchronize:    false,
-            ssl:            { rejectUnauthorized: false },
-            logging:        false,
-            // Inject neon Pool as the pg driver
-            driver:         Pool,
+            ssl:            true,
+            logging:        !isProduction,
+            // PERBAIKAN: Bungkus Pool di dalam object { Pool }
+            driver:         { Pool },
             extra: {
-              max: 1,
-              connectionTimeoutMillis: 8000,
+              max: 1, // Penting untuk Serverless / Vercel
+              connectionTimeoutMillis: 10000,
             },
-          } as object;
-        }
-
-        if (databaseUrl) {
-          return {
-            type:        'postgres',
-            url:         databaseUrl,
-            entities:    [User, ResetToken, Subscription, Workspace, Category],
-            synchronize: false,
-            ssl:         { rejectUnauthorized: false },
-            logging:     false,
           };
         }
 
+        // Fallback untuk local development tanpa DATABASE_URL
         return {
           type:        'postgres',
           host:        cfg.get('DB_HOST', 'localhost'),

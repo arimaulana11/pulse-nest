@@ -20,3 +20,6 @@ Thumbs.db
 
 # TypeScript
 tsconfig.build.tsbuildinfo
+
+.vercel
+.env*.local
