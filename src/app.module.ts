@@ -3,13 +3,6 @@ import { APP_GUARD }     from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtAuthGuard }  from './auth/jwt-auth.guard.js';
-import { neonConfig }    from '@neondatabase/serverless';
-import ws                from 'ws';
-
-// Patch pg WebSocket for Vercel/serverless (Neon requires WS in non-edge envs)
-if (process.env.NODE_ENV === 'production') {
-  neonConfig.webSocketConstructor = ws;
-}
 
 // DB entities
 import { User }         from './users/user.entity.js';
@@ -40,8 +33,33 @@ import { SuperAdminModule }    from './super-admin/super-admin.module.js';
 
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (cfg: ConfigService) => {
+      useFactory: async (cfg: ConfigService) => {
         const databaseUrl = cfg.get<string>('DATABASE_URL');
+        const isProduction = cfg.get('NODE_ENV') === 'production';
+
+        if (databaseUrl && isProduction) {
+          // Production: use @neondatabase/serverless as pg replacement
+          // This is pure JS — no native binary needed
+          const { Pool, neonConfig } = await import('@neondatabase/serverless');
+          const { default: ws } = await import('ws');
+          neonConfig.webSocketConstructor = ws;
+
+          return {
+            type:           'postgres',
+            url:            databaseUrl,
+            entities:       [User, ResetToken, Subscription, Workspace, Category],
+            synchronize:    false,
+            ssl:            { rejectUnauthorized: false },
+            logging:        false,
+            // Inject neon Pool as the pg driver
+            driver:         Pool,
+            extra: {
+              max: 1,
+              connectionTimeoutMillis: 8000,
+            },
+          } as object;
+        }
+
         if (databaseUrl) {
           return {
             type:        'postgres',
@@ -50,12 +68,9 @@ import { SuperAdminModule }    from './super-admin/super-admin.module.js';
             synchronize: false,
             ssl:         { rejectUnauthorized: false },
             logging:     false,
-            extra: {
-              max: 1,
-              connectionTimeoutMillis: 10000,
-            },
           };
         }
+
         return {
           type:        'postgres',
           host:        cfg.get('DB_HOST', 'localhost'),
