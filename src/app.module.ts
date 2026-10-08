@@ -3,8 +3,15 @@ import { APP_GUARD }     from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtAuthGuard }  from './auth/jwt-auth.guard.js';
+import { neonConfig }    from '@neondatabase/serverless';
+import ws                from 'ws';
 
-// DB entities (Postgres — auth + identity layer)
+// Patch pg WebSocket for Vercel/serverless (Neon requires WS in non-edge envs)
+if (process.env.NODE_ENV === 'production') {
+  neonConfig.webSocketConstructor = ws;
+}
+
+// DB entities
 import { User }         from './users/user.entity.js';
 import { ResetToken }   from './auth/reset-token.entity.js';
 import { Subscription } from './subscriptions/subscription.entity.js';
@@ -31,11 +38,9 @@ import { SuperAdminModule }    from './super-admin/super-admin.module.js';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
 
-    // ── PostgreSQL: identity + billing layer only ────────────────────────
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (cfg: ConfigService) => {
-        // Support both DATABASE_URL (Neon/production) and individual DB_* vars (local)
         const databaseUrl = cfg.get<string>('DATABASE_URL');
         if (databaseUrl) {
           return {
@@ -45,6 +50,10 @@ import { SuperAdminModule }    from './super-admin/super-admin.module.js';
             synchronize: false,
             ssl:         { rejectUnauthorized: false },
             logging:     false,
+            extra: {
+              max: 1,
+              connectionTimeoutMillis: 10000,
+            },
           };
         }
         return {
@@ -56,30 +65,17 @@ import { SuperAdminModule }    from './super-admin/super-admin.module.js';
           database:    cfg.get('DB_NAME', 'pulse_db'),
           entities:    [User, ResetToken, Subscription, Workspace, Category],
           synchronize: false,
-          logging:     cfg.get('NODE_ENV') === 'development',
+          logging:     true,
         };
       },
     }),
 
-    // ── Modules ─────────────────────────────────────────────────────────
-    AuthModule,
-    UsersModule,
-    SubscriptionsModule,
-    SheetsModule,
-    TransactionsModule,
-    BudgetModule,
-    JourneyModule,
-    GoalsModule,
-    WorkspacesModule,
-    NotificationsModule,
-    CategoriesModule,
-    StreakModule,
-    AdminModule,
-    SuperAdminModule,
+    AuthModule, UsersModule, SubscriptionsModule, SheetsModule,
+    TransactionsModule, BudgetModule, JourneyModule, GoalsModule,
+    WorkspacesModule, NotificationsModule, CategoriesModule,
+    StreakModule, AdminModule, SuperAdminModule,
   ],
   providers: [
-    // Apply JwtAuthGuard globally — every route is protected by default.
-    // Use @Public() decorator on individual routes to opt out (e.g. login, register).
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
 })
