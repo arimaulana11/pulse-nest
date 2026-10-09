@@ -8,6 +8,7 @@ import { Workspace }              from './workspace.entity.js';
 import { CreateWorkspaceDto, InviteMemberDto } from './dto/workspace.dto.js';
 import { SheetsService }          from '../sheets/sheets.service.js';
 import { NotificationsService }   from '../notifications/notifications.service.js';
+import { EmailService }           from '../email/email.service.js';
 
 @Injectable()
 export class WorkspacesService {
@@ -17,6 +18,7 @@ export class WorkspacesService {
     private readonly ds:     DataSource,
     private readonly sheets: SheetsService,
     private readonly notifs: NotificationsService,
+    private readonly email:  EmailService,
   ) {}
 
   // ── Helpers ────────────────────────────────────────────────────────────
@@ -152,6 +154,16 @@ export class WorkspacesService {
         wsRows[0]?.name     ?? 'Workspace',
         roleRows[0]?.label  ?? dto.roleCode,
       );
+
+      // Fire-and-forget: send email to invitee
+      void this.email.sendWorkspaceInvite({
+        toEmail:       dto.email,
+        inviterName:   inviterRows[0]?.name ?? 'Someone',
+        workspaceName: wsRows[0]?.name     ?? 'Workspace',
+        roleLabel:     roleRows[0]?.label  ?? dto.roleCode,
+        inviteToken:   token,
+        expiresAt,
+      });
     }
 
     return { message: `Undangan dikirim ke ${dto.email}`, token };

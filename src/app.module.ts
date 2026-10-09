@@ -26,6 +26,7 @@ import { CategoriesModule }    from './categories/categories.module.js';
 import { StreakModule }        from './streak/streak.module.js';
 import { AdminModule }         from './admin/admin.module.js';
 import { SuperAdminModule }    from './super-admin/super-admin.module.js';
+import { EmailModule }         from './email/email.module.js';
 
 @Module({
   imports: [
@@ -77,7 +78,7 @@ import { SuperAdminModule }    from './super-admin/super-admin.module.js';
     AuthModule, UsersModule, SubscriptionsModule, SheetsModule,
     TransactionsModule, BudgetModule, JourneyModule, GoalsModule,
     WorkspacesModule, NotificationsModule, CategoriesModule,
-    StreakModule, AdminModule, SuperAdminModule,
+    StreakModule, AdminModule, SuperAdminModule, EmailModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
