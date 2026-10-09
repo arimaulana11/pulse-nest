@@ -240,4 +240,115 @@ export class WorkspacesService {
     if (!ws.sheetId) return null; // workspace has no sheet configured — fall back to personal
     return ws;
   }
+
+  // ── Accept invite via token link (from email, no auth required) ────────
+
+  async acceptInviteByToken(token: string): Promise<{
+    success: boolean; message: string; redirectUrl: string;
+  }> {
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://pulse-next-phi.vercel.app';
+
+    const rows = await this.ds.query<{
+      id: string; workspace_id: string; role_id: string; email: string;
+    }[]>(
+      `SELECT id, workspace_id, role_id, email FROM workspace_invitations
+       WHERE token = $1 AND status = 'pending' AND expires_at > NOW()`,
+      [token],
+    );
+
+    if (!rows.length) {
+      return {
+        success:     false,
+        message:     'Undangan tidak ditemukan atau sudah kadaluarsa.',
+        redirectUrl: `${frontendUrl}/login?error=invite_expired`,
+      };
+    }
+
+    const inv = rows[0];
+
+    // Find user by email
+    const userRows = await this.ds.query<{ id: string }[]>(
+      `SELECT id FROM users WHERE email = $1`, [inv.email],
+    );
+
+    if (!userRows.length) {
+      // User belum daftar — redirect ke register dengan email pre-filled
+      return {
+        success:     false,
+        message:     'Daftar terlebih dahulu untuk bergabung ke workspace.',
+        redirectUrl: `${frontendUrl}/register?email=${encodeURIComponent(inv.email)}&invite=${token}`,
+      };
+    }
+
+    const userId = userRows[0].id;
+
+    await this.ds.query(
+      `INSERT INTO workspace_members (workspace_id, user_id, role_id)
+       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [inv.workspace_id, userId, inv.role_id],
+    );
+
+    await this.ds.query(
+      `UPDATE workspace_invitations SET status = 'accepted', accepted_at = NOW() WHERE id = $1`,
+      [inv.id],
+    );
+
+    await this.ds.query(
+      `UPDATE notifications SET is_read = true, read_at = NOW()
+       WHERE user_id = $1 AND invite_id = $2`,
+      [userId, inv.id],
+    );
+
+    return {
+      success:     true,
+      message:     'Berhasil bergabung ke workspace!',
+      redirectUrl: `${frontendUrl}/?invite=accepted`,
+    };
+  }
+
+  // ── Reject invite via token link ───────────────────────────────────────
+
+  async rejectInviteByToken(token: string): Promise<{
+    success: boolean; message: string; redirectUrl: string;
+  }> {
+    const frontendUrl = process.env.FRONTEND_URL ?? 'https://pulse-next-phi.vercel.app';
+
+    const rows = await this.ds.query<{ id: string; email: string }[]>(
+      `SELECT id, email FROM workspace_invitations
+       WHERE token = $1 AND status = 'pending'`,
+      [token],
+    );
+
+    if (!rows.length) {
+      return {
+        success:     false,
+        message:     'Undangan tidak ditemukan.',
+        redirectUrl: `${frontendUrl}/login`,
+      };
+    }
+
+    const inv = rows[0];
+
+    await this.ds.query(
+      `UPDATE workspace_invitations SET status = 'declined' WHERE id = $1`,
+      [inv.id],
+    );
+
+    const userRows = await this.ds.query<{ id: string }[]>(
+      `SELECT id FROM users WHERE email = $1`, [inv.email],
+    );
+    if (userRows.length) {
+      await this.ds.query(
+        `UPDATE notifications SET is_read = true, read_at = NOW()
+         WHERE user_id = $1 AND invite_id = $2`,
+        [userRows[0].id, inv.id],
+      );
+    }
+
+    return {
+      success:     true,
+      message:     'Undangan telah ditolak.',
+      redirectUrl: `${frontendUrl}/?invite=rejected`,
+    };
+  }
 }

@@ -178,8 +178,30 @@ export class WorkspacesController {
   }
 
   @Public()
-  @Post('test-sheet')
+  @Get('invitations/:token/accept')
+  @ApiOperation({
+    summary: 'Terima undangan workspace via link email (tanpa auth)',
+    description: 'User klik link di email → otomatis accept jika sudah punya akun, redirect ke frontend.',
+  })
+  @ApiParam({ name: 'token', description: 'Token dari workspace_invitations' })
+  acceptByToken(@Param('token') token: string) {
+    return this.svc.acceptInviteByToken(token);
+  }
+
+  @Public()
+  @Get('invitations/:token/reject')
   @HttpCode(200)
+  @ApiOperation({
+    summary: 'Tolak undangan workspace via link email (tanpa auth)',
+    description: 'User klik link tolak di email → decline invitation.',
+  })
+  @ApiParam({ name: 'token', description: 'Token dari workspace_invitations' })
+  rejectByToken(@Param('token') token: string) {
+    return this.svc.rejectInviteByToken(token);
+  }
+
+  @Public()
+  @Post('test-sheet')  @HttpCode(200)
   @ApiOperation({
     summary: 'Test koneksi Google Sheet',
     description: 'Mencoba membaca tab yang ditentukan dari spreadsheet. Gunakan saat setup workspace untuk verifikasi Sheet ID dan akses service account sudah benar.',

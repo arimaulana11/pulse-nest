@@ -36,14 +36,15 @@ export class EmailService {
     inviterName:   string;
     workspaceName: string;
     roleLabel:     string;
-    inviteToken:   string;   // token from workspace_invitations
+    inviteToken:   string;
     expiresAt:     Date;
   }): Promise<void> {
-    const acceptUrl = `${this.appUrl}/notifikasi`;
+    const acceptUrl = `${this.appUrl}/invite/${opts.inviteToken}`;
+    const rejectUrl = `${this.appUrl}/invite/${opts.inviteToken}?action=reject`;
     const expiry    = opts.expiresAt.toLocaleDateString('id-ID', {
       day: 'numeric', month: 'long', year: 'numeric',
     });
-    const greeting  = opts.toName ? `Hai <b>${opts.toName}</b>,` : 'Hai,';
+    const greeting = opts.toName ? `Hai <b>${opts.toName}</b>,` : 'Hai,';
 
     const html = `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
@@ -69,27 +70,38 @@ export class EmailService {
             <b>"${opts.workspaceName}"</b> di Pulse sebagai <b>${opts.roleLabel}</b>.
           </p>
 
-          <!-- CTA Button -->
-          <div style="text-align:center;margin:28px 0">
+          <!-- Action Buttons -->
+          <div style="display:flex;gap:12px;justify-content:center;margin:28px 0;flex-wrap:wrap">
             <a href="${acceptUrl}"
                style="display:inline-block;background:#B25329;color:#fff;
                       font-weight:700;font-size:15px;padding:14px 32px;
                       border-radius:12px;text-decoration:none;letter-spacing:0.2px">
-              Lihat Undangan →
+              ✓ Terima Undangan
+            </a>
+            <a href="${rejectUrl}"
+               style="display:inline-block;background:#F4EDE2;color:#8C7B70;
+                      font-weight:700;font-size:15px;padding:14px 32px;
+                      border-radius:12px;text-decoration:none;letter-spacing:0.2px">
+              ✕ Tolak
             </a>
           </div>
 
-          <p style="color:#8C7B70;font-size:13px;line-height:1.6;margin:0">
-            Kamu bisa menerima atau menolak undangan dari halaman
-            <a href="${acceptUrl}" style="color:#B25329">Notifikasi</a> setelah login.
-            Undangan berlaku hingga <b>${expiry}</b>.
+          <p style="color:#8C7B70;font-size:13px;line-height:1.6;margin:0 0 8px">
+            Atau buka halaman notifikasi setelah login untuk mengelola undangan ini.
           </p>
 
-          <hr style="border:none;border-top:1px solid #ECE1D1;margin:24px 0">
-
-          <p style="color:#B0A090;font-size:12px;margin:0">
+          <p style="color:#B0A090;font-size:12px;line-height:1.6;margin:0">
+            Undangan berlaku hingga <b>${expiry}</b>.
             Jika kamu tidak mengenal pengirim ini, abaikan email ini.
-            Email ini dikirim dari Pulse Personal Finance.
+          </p>
+
+          <hr style="border:none;border-top:1px solid #ECE1D1;margin:20px 0 16px">
+
+          <p style="color:#B0A090;font-size:11px;margin:0;text-align:center">
+            Email ini dikirim dari Pulse Personal Finance ·
+            <a href="${this.appUrl}" style="color:#B25329;text-decoration:none">
+              pulse-next-phi.vercel.app
+            </a>
           </p>
         </div>
       </div>
@@ -99,12 +111,11 @@ export class EmailService {
       await this.transporter.sendMail({
         from:    this.from,
         to:      opts.toEmail,
-        subject: `${opts.inviterName} mengundangmu ke workspace "${opts.workspaceName}" – Pulse`,
+        subject: `${opts.inviterName} mengundangmu ke "${opts.workspaceName}" – Pulse`,
         html,
       });
-      this.log.log(`Invite email sent to ${opts.toEmail} for workspace ${opts.workspaceName}`);
+      this.log.log(`Invite email sent to ${opts.toEmail}`);
     } catch (err) {
-      // Log but don't throw — email failure should not break invite creation
       this.log.warn(`Failed to send invite email to ${opts.toEmail}: ${String(err)}`);
     }
   }
